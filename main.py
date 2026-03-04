@@ -11,7 +11,6 @@ st.title("Audio File Converter")
 uploads = st.file_uploader("Upload audio files", type=["mp3", "wav", "ogg", "flac", "m4a"], accept_multiple_files=True)
 
 def read_audio(upload):
-    """Read audio file, using PyAV as fallback for m4a/mp3"""
     file_bytes = upload.read()
     ext = os.path.splitext(upload.name)[1].lower().strip(".")
 
@@ -35,11 +34,13 @@ def read_audio(upload):
 if uploads:
     os.makedirs("output", exist_ok=True)
 
-    # Display uploaded files list
-    st.subheader(f"📁 Uploaded Files ({len(uploads)})")
+    st.subheader(f"📁 Files ({len(uploads)})")
+    file_status = []
     for i, upload in enumerate(uploads, 1):
         size_kb = round(upload.size / 1024, 1)
-        st.write(f"{i}. {upload.name} — {size_kb} KB")
+        status = st.empty()
+        status.write(f"{i}. {upload.name} — {size_kb} KB")
+        file_status.append(status)
 
     st.divider()
 
@@ -48,20 +49,32 @@ if uploads:
 
     if st.button("Convert All"):
         converted_files = []
+        overall_progress = st.progress(0, text="Starting conversion...")
 
-        for upload in uploads:
+        for idx, upload in enumerate(uploads):
+            size_kb = round(upload.size / 1024, 1)
+
+            # Update that file's status to "converting"
+            file_status[idx].write(f"⏳ {idx+1}. {upload.name} — {size_kb} KB  `converting...`")
+
             try:
                 audio_data, sample_rate = read_audio(upload)
 
                 output_filename = f"{os.path.splitext(upload.name)[0]}.{output_format}"
                 output_path = os.path.join("output", output_filename)
-
                 sf.write(output_path, audio_data, sample_rate, subtype=subtype_map[output_format])
                 converted_files.append((output_path, output_filename))
-                st.success(f"✅ {upload.name} converted successfully!")
+
+                # Update that file's status to "done"
+                file_status[idx].write(f"✅ {idx+1}. {upload.name} — {size_kb} KB")
 
             except Exception as e:
-                st.error(f"❌ Failed to convert {upload.name}: {e}")
+                file_status[idx].write(f"❌ {idx+1}. {upload.name} — {size_kb} KB  `{e}`")
+
+            # Update overall progress bar
+            overall_progress.progress((idx + 1) / len(uploads), text=f"Converted {idx+1} of {len(uploads)} files")
+
+        overall_progress.progress(1.0, text="✅ All conversions complete!")
 
         if converted_files:
             zip_buffer = io.BytesIO()
