@@ -8,7 +8,8 @@ import av
 
 st.title("Audio File Converter")
 
-uploads = st.file_uploader("Upload audio files", type=["mp3", "wav", "ogg", "flac", "m4a"], accept_multiple_files=True)
+if "zip_buffer" not in st.session_state:
+    st.session_state.zip_buffer = None
 
 def read_audio(upload):
     file_bytes = upload.read()
@@ -31,6 +32,8 @@ def read_audio(upload):
 
     return audio_data, sample_rate
 
+uploads = st.file_uploader("Upload audio files", type=["mp3", "wav", "ogg", "flac", "m4a"], accept_multiple_files=True)
+
 if uploads:
     os.makedirs("output", exist_ok=True)
 
@@ -48,30 +51,25 @@ if uploads:
     subtype_map = {"wav": "PCM_16", "flac": "PCM_16", "ogg": "VORBIS"}
 
     if st.button("Convert All"):
+        st.session_state.zip_buffer = None
         converted_files = []
         overall_progress = st.progress(0, text="Starting conversion...")
 
         for idx, upload in enumerate(uploads):
             size_kb = round(upload.size / 1024, 1)
-
-            # Update that file's status to "converting"
             file_status[idx].write(f"⏳ {idx+1}. {upload.name} — {size_kb} KB  `converting...`")
 
             try:
                 audio_data, sample_rate = read_audio(upload)
-
                 output_filename = f"{os.path.splitext(upload.name)[0]}.{output_format}"
                 output_path = os.path.join("output", output_filename)
                 sf.write(output_path, audio_data, sample_rate, subtype=subtype_map[output_format])
                 converted_files.append((output_path, output_filename))
-
-                # Update that file's status to "done"
                 file_status[idx].write(f"✅ {idx+1}. {upload.name} — {size_kb} KB")
 
             except Exception as e:
                 file_status[idx].write(f"❌ {idx+1}. {upload.name} — {size_kb} KB  `{e}`")
 
-            # Update overall progress bar
             overall_progress.progress((idx + 1) / len(uploads), text=f"Converted {idx+1} of {len(uploads)} files")
 
         overall_progress.progress(1.0, text="✅ All conversions complete!")
@@ -82,10 +80,12 @@ if uploads:
                 for output_path, output_filename in converted_files:
                     zf.write(output_path, output_filename)
             zip_buffer.seek(0)
+            st.session_state.zip_buffer = zip_buffer
 
-            st.download_button(
-                label="⬇️ Download All as ZIP",
-                data=zip_buffer,
-                file_name="converted_audio.zip",
-                mime="application/zip"
-            )
+    if st.session_state.zip_buffer is not None:
+        st.download_button(
+            label="⬇️ Download All as ZIP",
+            data=st.session_state.zip_buffer,
+            file_name="converted_audio.zip",
+            mime="application/zip"
+        )
