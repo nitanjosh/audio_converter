@@ -26,7 +26,7 @@ def read_audio(upload):
             samples.append(frame.to_ndarray())
 
         audio_data = np.concatenate(samples, axis=1).T.astype(np.float32)
-        audio_data /= np.iinfo(np.int16).max  # normalize to -1.0 to 1.0
+        audio_data /= np.iinfo(np.int16).max
     else:
         audio_data, sample_rate = sf.read(io.BytesIO(file_bytes))
 
@@ -34,6 +34,14 @@ def read_audio(upload):
 
 if uploads:
     os.makedirs("output", exist_ok=True)
+
+    # Display uploaded files list
+    st.subheader(f"📁 Uploaded Files ({len(uploads)})")
+    for i, upload in enumerate(uploads, 1):
+        size_kb = round(upload.size / 1024, 1)
+        st.write(f"{i}. {upload.name} — {size_kb} KB")
+
+    st.divider()
 
     output_format = st.selectbox("Select output format", ["wav", "flac", "ogg"])
     subtype_map = {"wav": "PCM_16", "flac": "PCM_16", "ogg": "VORBIS"}
