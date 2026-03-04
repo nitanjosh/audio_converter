@@ -21,17 +21,24 @@ def read_audio(upload):
         stream = container.streams.audio[0]
         sample_rate = stream.codec_context.sample_rate
 
+        resampler = av.AudioResampler(format='fltp', rate=sample_rate)
+
         samples = []
         for frame in container.decode(stream):
-            frame = frame.reformat(format='fltp')
-            samples.append(frame.to_ndarray())
+            resampled = resampler.resample(frame)
+            for f in resampled:
+                samples.append(f.to_ndarray())
+
+        # Flush resampler
+        for f in resampler.resample(None):
+            samples.append(f.to_ndarray())
 
         audio_array = np.concatenate(samples, axis=1)
 
         if audio_array.shape[0] == 1:
-            audio_data = audio_array[0]
+            audio_data = audio_array[0]       # mono → 1D
         else:
-            audio_data = audio_array.T 
+            audio_data = audio_array.T        # stereo → (samples, 2)
 
         audio_data = audio_data.astype(np.float32)
 
