@@ -23,10 +23,18 @@ def read_audio(upload):
 
         samples = []
         for frame in container.decode(stream):
+            frame = frame.reformat(format='fltp')
             samples.append(frame.to_ndarray())
 
-        audio_data = np.concatenate(samples, axis=1).T.astype(np.float32)
-        audio_data /= np.iinfo(np.int16).max
+        audio_array = np.concatenate(samples, axis=1)
+
+        if audio_array.shape[0] == 1:
+            audio_data = audio_array[0]
+        else:
+            audio_data = audio_array.T 
+
+        audio_data = audio_data.astype(np.float32)
+
     else:
         audio_data, sample_rate = sf.read(io.BytesIO(file_bytes))
 
