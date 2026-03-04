@@ -3,10 +3,34 @@ import soundfile as sf
 import io
 import os
 import zipfile
+import numpy as np
+import av
 
 st.title("Audio File Converter")
 
 uploads = st.file_uploader("Upload audio files", type=["mp3", "wav", "ogg", "flac", "m4a"], accept_multiple_files=True)
+
+def read_audio(upload):
+    """Read audio file, using PyAV as fallback for m4a/mp3"""
+    file_bytes = upload.read()
+    ext = os.path.splitext(upload.name)[1].lower().strip(".")
+
+    if ext in ["m4a", "mp3"]:
+        buf = io.BytesIO(file_bytes)
+        container = av.open(buf)
+        stream = container.streams.audio[0]
+        sample_rate = stream.codec_context.sample_rate
+
+        samples = []
+        for frame in container.decode(stream):
+            samples.append(frame.to_ndarray())
+
+        audio_data = np.concatenate(samples, axis=1).T.astype(np.float32)
+        audio_data /= np.iinfo(np.int16).max  # normalize to -1.0 to 1.0
+    else:
+        audio_data, sample_rate = sf.read(io.BytesIO(file_bytes))
+
+    return audio_data, sample_rate
 
 if uploads:
     os.makedirs("output", exist_ok=True)
@@ -19,8 +43,7 @@ if uploads:
 
         for upload in uploads:
             try:
-                file_bytes = upload.read()
-                audio_data, sample_rate = sf.read(io.BytesIO(file_bytes))
+                audio_data, sample_rate = read_audio(upload)
 
                 output_filename = f"{os.path.splitext(upload.name)[0]}.{output_format}"
                 output_path = os.path.join("output", output_filename)
@@ -32,7 +55,6 @@ if uploads:
             except Exception as e:
                 st.error(f"❌ Failed to convert {upload.name}: {e}")
 
-        # Zip all converted files for a single download
         if converted_files:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w") as zf:
@@ -41,7 +63,7 @@ if uploads:
             zip_buffer.seek(0)
 
             st.download_button(
-                label="Download All as ZIP",
+                label="⬇️ Download All as ZIP",
                 data=zip_buffer,
                 file_name="converted_audio.zip",
                 mime="application/zip"
