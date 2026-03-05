@@ -1,4 +1,4 @@
 streamlit
 soundfile
-av
+pyav
 numpy
